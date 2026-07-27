@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "Dev-only tooling: PNG->LVGL icon converter and claudepix splash scraper. Run `npm install` here, then `node png_to_lvgl.js …` (see ../docs/DEVELOPMENT.md).",
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  }
+}
