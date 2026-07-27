@@ -67,8 +67,10 @@ static uint32_t my_tick(void) { return millis(); }
 // Split of a frame's cost: time spent getting pixels onto the panel, vs. time
 // LVGL spent rendering them. Read by the `bench` serial command — the two are
 // worth telling apart, since only one of them responds to the bus clock.
-static volatile uint32_t g_push_us = 0;
-static volatile uint32_t g_push_calls = 0;
+// Both are only touched from the LVGL flush callback and the serial command
+// handler, which run on the same task — no volatile needed.
+static uint32_t g_push_us = 0;
+static uint32_t g_push_calls = 0;
 
 static void my_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
     int32_t w = area->x2 - area->x1 + 1;

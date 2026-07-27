@@ -36,11 +36,14 @@ Port is `/dev/ttyACM0` on Linux, `/dev/cu.usbmodem*` on macOS.
    network credentials.
 2. Once it's on your network, open the config page shown on the device's Wi-Fi
    screen (`http://agentmeter.local`, or the IP it displays).
-3. Paste your API credentials. Saving requires the 8-character code shown on the
-   device, so you have to be able to see the panel.
+3. The page is locked. Enter the 8-character code shown on the device to unlock
+   it — so only someone who can see the panel can change settings. It stays
+   unlocked for 30 minutes.
+4. Paste your API credentials and save. Changes apply immediately.
 
-> Credentials are stored unencrypted in flash and the config page is plain HTTP.
-> It's a personal desk device — don't put it on a network you don't trust.
+> Credentials are stored unencrypted in flash, and the config page — including
+> the code and session cookie — is plain HTTP. It's a personal desk device;
+> don't put it on a network you don't trust.
 
 ## Development
 
@@ -52,6 +55,10 @@ pio test -d firmware -e native                # parser tests
 
 Serial commands over USB: `screen <name>`, `tile <col> [page]`, `screenshot`,
 `bench`, `lvmem`.
+
+[`docs/hardware-notes.md`](docs/hardware-notes.md) covers the constraints worth
+knowing before changing anything: the device is out of internal RAM, which is
+what caps provider count and frame rate.
 
 ## Credits
 
