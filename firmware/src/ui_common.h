@@ -113,6 +113,12 @@ void       format_reset_time(int mins, char* buf, size_t len);
 // The bundled fonts are ASCII-only subsets, so separators like U+00B7 render
 // as tofu; phrasing carries the join instead.
 void       format_reset_phrase(int mins, char* buf, size_t len);
+void       format_reset_compact(int mins, char* buf, size_t len);
+// "2h 25m" — bare duration, for use straight after a metric label.
+void       format_reset_short(int mins, char* buf, size_t len);
+// "resets Wed" — the weekday a long window turns over on. Falls back to
+// "resets in 6d 7h" until NTP has synced.
+void       format_reset_weekday(int mins, char* buf, size_t len);
 
 lv_obj_t* make_panel(lv_obj_t* parent, int x, int y, int w, int h);
 lv_obj_t* make_bar(lv_obj_t* parent, int x, int y, int w, int h);

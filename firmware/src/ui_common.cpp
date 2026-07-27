@@ -1,5 +1,7 @@
 #include "ui_common.h"
+#include "settings.h"
 #include <Arduino.h>
+#include <time.h>
 
 Layout L = {};
 
@@ -114,6 +116,63 @@ void format_reset_phrase(int mins, char* buf, size_t len) {
         snprintf(buf, len, "resets in %dh %dm", mins / 60, mins % 60);
     } else {
         snprintf(buf, len, "resets in %dd %dh", mins / 1440, (mins % 1440) / 60);
+    }
+}
+
+// "2h 25m" — bare duration, no verb. Rides directly after a metric label on
+// the measurement line ("Session 2h 25m"), where the label supplies the noun
+// and the bar beneath supplies the context.
+void format_reset_short(int mins, char* buf, size_t len) {
+    if (mins < 0) {
+        buf[0] = '\0';
+    } else if (mins < 60) {
+        snprintf(buf, len, "%dm", mins);
+    } else if (mins < 1440) {
+        snprintf(buf, len, "%dh %dm", mins / 60, mins % 60);
+    } else {
+        snprintf(buf, len, "%dd %dh", mins / 1440, (mins % 1440) / 60);
+    }
+}
+
+// "resets Wed" — the weekday a long window turns over on.
+//
+// A seven-day window is the one case where a countdown is the wrong unit: "6d
+// 7h" is arithmetic you have to do, while a weekday is the answer you wanted.
+// Uses the same NTP-time-plus-user-offset basis as the title clock, and falls
+// back to the countdown when NTP has not synced, since a weekday computed from
+// an unset clock would be confidently wrong.
+void format_reset_weekday(int mins, char* buf, size_t len) {
+    static const char* DAYS[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    if (mins < 0) { buf[0] = '\0'; return; }
+
+    time_t now = time(nullptr);
+    if (now <= 1500000000L) {           // clock not set — say it the honest way
+        char d[24];
+        format_reset_short(mins, d, sizeof(d));
+        if (d[0]) snprintf(buf, len, "resets in %s", d);
+        else      buf[0] = '\0';
+        return;
+    }
+
+    time_t at = now + (time_t)mins * 60 + (time_t)settings_clock_offset_min() * 60;
+    struct tm tmv;
+    gmtime_r(&at, &tmv);
+    snprintf(buf, len, "resets %s", DAYS[tmv.tm_wday % 7]);
+}
+
+// "3h 27m left" — the same fact as format_reset_time in two thirds the width,
+// with the number first. Overview rows share one line between this and the
+// second window's readout, so the nine characters of "Resets in " are what
+// stand between that line and a font size you can read across a room.
+void format_reset_compact(int mins, char* buf, size_t len) {
+    if (mins < 0) {
+        snprintf(buf, len, "---");
+    } else if (mins < 60) {
+        snprintf(buf, len, "%dm left", mins);
+    } else if (mins < 1440) {
+        snprintf(buf, len, "%dh %dm left", mins / 60, mins % 60);
+    } else {
+        snprintf(buf, len, "%dd %dh left", mins / 1440, (mins % 1440) / 60);
     }
 }
 

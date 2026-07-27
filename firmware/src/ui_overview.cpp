@@ -29,6 +29,7 @@ struct RowTier {
     int16_t          min_h;        // inclusive lower bound on row_h
     const lv_font_t* name_font;    // eyebrow
     const lv_font_t* val_font;
+    const lv_font_t* metric_font;  // "Session 2h 25m", beside the value (hero)
     const lv_font_t* detail_font;
     int16_t          bar_h;
     uint8_t          detail_style;
@@ -36,12 +37,17 @@ struct RowTier {
     bool             hero;
 };
 
+// The hero row is read from across a room, so the sizes below are chosen for
+// that distance rather than scaled off the measurement. The big number gives up
+// a step (64→48) to pay for it: at arm's length the extra 16px on a two-digit
+// percentage was decoration, while the lines that say *which* window and *when*
+// it turns over were the ones being squinted at. Everything else moves up.
 static const RowTier TIERS[] = {
-    /* XXL*/ {150, &font_styrene_20, &font_styrene_64, &font_styrene_20, 10, DETAIL_FULL,     true,  true },
-    /* XL */ {130, &font_styrene_20, &font_styrene_48, &font_styrene_16, 8,  DETAIL_FULL,     true,  true },
-    /* L  */ {100, &font_styrene_20, &font_styrene_28, &font_styrene_16, 6,  DETAIL_FULL_SEC, false, false},
-    /* M  */ { 74, &font_styrene_16, &font_styrene_24, &font_styrene_14, 6,  DETAIL_RESET,    false, false},
-    /* S  */ {  0, &font_styrene_16, &font_styrene_20, nullptr,          6,  DETAIL_NONE,     false, false},
+    /* XXL*/ {150, &font_styrene_24, &font_styrene_48, &font_styrene_28, &font_styrene_28, 10, DETAIL_FULL,     true,  true },
+    /* XL */ {130, &font_styrene_24, &font_styrene_48, &font_styrene_24, &font_styrene_24, 8,  DETAIL_FULL,     true,  true },
+    /* L  */ {100, &font_styrene_20, &font_styrene_28, &font_styrene_20, &font_styrene_16, 6,  DETAIL_FULL_SEC, false, false},
+    /* M  */ { 74, &font_styrene_16, &font_styrene_24, &font_styrene_16, &font_styrene_14, 6,  DETAIL_RESET,    false, false},
+    /* S  */ {  0, &font_styrene_16, &font_styrene_20, &font_styrene_16, nullptr,          6,  DETAIL_NONE,     false, false},
 };
 #define TIER_COUNT ((int)(sizeof(TIERS) / sizeof(TIERS[0])))
 
@@ -65,6 +71,7 @@ struct OverviewRow {
     int16_t          val_y;     // right-aligned labels are re-aligned on every
     int16_t          state_y;   // update (their width changes), so keep their y
     int16_t          metric_y;
+    int16_t          sec_lbl_y;
 };
 
 static OverviewRow rows[MAX_PROVIDERS];
@@ -171,12 +178,15 @@ static void build_row(lv_obj_t* parent, OverviewRow* r, const ProviderSlot* s,
         r->val_y = start_y + name_h + gap;
         lv_obj_set_pos(r->val, 0, r->val_y);
 
-        // The metric's own name sits quietly on the measurement's baseline.
+        // The window's name and its countdown sit together on the
+        // measurement's baseline — "Session 2h 25m". Keeping them on the same
+        // line as the number they describe is what frees the line below for
+        // the second window.
         r->metric = lv_label_create(r->panel);
         lv_label_set_text(r->metric, "");
-        lv_obj_set_style_text_font(r->metric, &font_styrene_24, 0);
+        lv_obj_set_style_text_font(r->metric, t->metric_font, 0);
         lv_obj_set_style_text_color(r->metric, COL_DIM, 0);
-        r->metric_y = r->val_y + head_h - lv_font_get_line_height(&font_styrene_24) - 8;
+        r->metric_y = r->val_y + head_h - lv_font_get_line_height(t->metric_font) - 8;
         lv_obj_align(r->metric, LV_ALIGN_TOP_RIGHT, 0, r->metric_y);
 
         // State words share the eyebrow line, where there is always room.
@@ -226,12 +236,15 @@ static void build_row(lv_obj_t* parent, OverviewRow* r, const ProviderSlot* s,
         lv_obj_set_pos(r->detail, 0, y_cur);
 
         if (t->hero) {
-            // Hero rows label the second track at the end of the detail line.
+            // The detail line belongs to the second window: its measurement on
+            // the left, directly under its own track, and the day it turns over
+            // on the right.
             r->sec_lbl = lv_label_create(r->panel);
             lv_label_set_text(r->sec_lbl, "");
             lv_obj_set_style_text_font(r->sec_lbl, t->detail_font, 0);
             lv_obj_set_style_text_color(r->sec_lbl, COL_DIM, 0);
-            lv_obj_align(r->sec_lbl, LV_ALIGN_TOP_RIGHT, 0, y_cur);
+            r->sec_lbl_y = y_cur;
+            lv_obj_align(r->sec_lbl, LV_ALIGN_TOP_RIGHT, 0, r->sec_lbl_y);
         } else {
             // List rows have no eyebrow room to spare, so state goes here.
             r->state = lv_label_create(r->panel);
@@ -338,7 +351,15 @@ void overview_update(void) {
             // takes the alarm color only once the bar has one.
             lv_obj_set_style_text_color(r->val,
                 (scaled && bar >= 50) ? pct_color((float)bar) : COL_TEXT, 0);
-            if (r->metric) lv_label_set_text(r->metric, p->label);
+            // "Session 2h 25m" — the window's name and its countdown together,
+            // so the primary window is fully described on its own line.
+            if (r->metric) {
+                char when[24];
+                format_reset_short(p->reset_mins, when, sizeof(when));
+                if (when[0]) snprintf(buf, sizeof(buf), "%s %s", p->label, when);
+                else         snprintf(buf, sizeof(buf), "%s", p->label);
+                lv_label_set_text(r->metric, buf);
+            }
         } else {
             lv_label_set_text(r->val, "---");
             lv_obj_set_style_text_color(r->val, COL_DIM, 0);
@@ -357,9 +378,15 @@ void overview_update(void) {
             buf[0] = '\0';
             if (s.valid && p->present) {
                 if (t->hero) {
-                    // The metric is already named beside the value, so the
-                    // detail line only has to say when it turns over.
-                    format_reset_time(p->reset_mins, buf, sizeof(buf));
+                    // The primary window is fully described on the line above,
+                    // so this line reads out the second one — "Weekly 13%". A
+                    // provider with a single window leaves it empty rather than
+                    // repeating what the measurement line already said.
+                    if (s.secondary.present) {
+                        char sv[24];
+                        format_metric_value(&s.secondary, sv, sizeof(sv));
+                        snprintf(buf, sizeof(buf), "%s %s", s.secondary.label, sv);
+                    }
                 } else if (t->detail_style == DETAIL_RESET) {
                     format_reset_time(p->reset_mins, buf, sizeof(buf));
                 } else {
@@ -395,14 +422,24 @@ void overview_update(void) {
                 lv_obj_add_flag(r->sec_bar, LV_OBJ_FLAG_HIDDEN);
             }
         }
+        // The second window's readout is a live measurement, not a caption, so
+        // it reads at full brightness and takes the alarm color along with its
+        // own track — the same rule the primary value follows above.
+        if (r->detail && t->hero) {
+            const int  sbar    = metric_bar_pct(&s.secondary);
+            const bool sscaled = (s.secondary.kind == METRIC_PCT || s.secondary.limit > 0.0f);
+            lv_obj_set_style_text_color(r->detail,
+                (s.valid && s.secondary.present && sscaled && sbar >= 50)
+                    ? pct_color((float)sbar) : COL_TEXT, 0);
+        }
+
+        // A seven-day window turns over on a day, not in a number of hours.
         if (r->sec_lbl) {
             buf[0] = '\0';
-            if (s.valid && s.secondary.present) {
-                char sv[24];
-                format_metric_value(&s.secondary, sv, sizeof(sv));
-                snprintf(buf, sizeof(buf), "%s %s", s.secondary.label, sv);
-            }
+            if (s.valid && s.secondary.present)
+                format_reset_weekday(s.secondary.reset_mins, buf, sizeof(buf));
             lv_label_set_text(r->sec_lbl, buf);
+            lv_obj_align(r->sec_lbl, LV_ALIGN_TOP_RIGHT, 0, r->sec_lbl_y);
         }
 
         // ---- State: words where there's room, a glyph where there isn't ----
