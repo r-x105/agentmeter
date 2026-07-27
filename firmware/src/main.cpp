@@ -19,6 +19,7 @@
 #include "config_server.h"
 #include "brightness.h"
 #include "settings.h"
+#include "board_check.h"
 
 #include "hal/board_caps.h"
 #include "hal/display_hal.h"
@@ -380,6 +381,7 @@ static void pair_tick(void) {
 }
 
 void loop() {
+    board_check_tick();   // re-warns on a wrong-board flash; no-op otherwise
     idle_tick();
     lv_timer_handler();
     secrets_flush();   // persist queued credential writes (see secrets.h)
